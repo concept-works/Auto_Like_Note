@@ -2,6 +2,9 @@ import time
 import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 import schedule
 import os
 from datetime import datetime
@@ -13,7 +16,6 @@ def get_next_ip(ip_file, index_file):
     if len(ip_list) < 1:
         raise ValueError("IPリストが空です")
 
-    # 0行目はヘッダー、2行目が index 0 として扱う
     max_index = len(ip_list) - 1
 
     if os.path.exists(index_file):
@@ -22,7 +24,6 @@ def get_next_ip(ip_file, index_file):
     else:
         index = 0
 
-    # 次のIP取得
     selected_ip = ip_list[index]
     new_index = index + 1 if index + 1 <= max_index else 0
 
@@ -43,21 +44,25 @@ def click_element(url, selector, ip, log_file):
         options.add_argument("--headless")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
-        options.add_argument(f"--proxy-server={ip}")  # IPアドレスを使用
+        options.add_argument(f"--proxy-server={ip}")
 
         driver = webdriver.Chrome(options=options)
-        driver.get(url)
-        time.sleep(3)
+        driver.set_window_size(1280, 800)  # PCビュー想定
 
-        element = driver.find_element("css selector", selector)
+        driver.get(url)
+
+        # 明示的に要素が出現するのを最大10秒待つ
+        wait = WebDriverWait(driver, 10)
+        element = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, selector)))
+
         element.click()
         print("✅ クリック成功", flush=True)
-        driver.quit()
-
         log_click(url, ip, log_file)
 
     except Exception as e:
         print(f"❌ クリック失敗: {e}", flush=True)
+    finally:
+        driver.quit()
 
 def schedule_tasks():
     print("📋 タスクスケジュール設定開始", flush=True)
@@ -80,12 +85,15 @@ def schedule_tasks():
         ip = get_next_ip(ip_file, index_file)
         click_element(url, selector, ip, log_file)
 
+        def make_job(u=url, s=selector):
+            return lambda: click_element(u, s, get_next_ip(ip_file, index_file), log_file)
+
         if unit == "分":
-            schedule.every(interval).minutes.do(lambda u=url, s=selector: click_element(u, s, get_next_ip(ip_file, index_file), log_file))
+            schedule.every(interval).minutes.do(make_job())
         elif unit == "時間":
-            schedule.every(interval).hours.do(lambda u=url, s=selector: click_element(u, s, get_next_ip(ip_file, index_file), log_file))
+            schedule.every(interval).hours.do(make_job())
         elif unit == "日":
-            schedule.every(interval).days.do(lambda u=url, s=selector: click_element(u, s, get_next_ip(ip_file, index_file), log_file))
+            schedule.every(interval).days.do(make_job())
         else:
             print(f"⚠️ 未対応の単位: {unit}", flush=True)
 
