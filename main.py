@@ -1,4 +1,5 @@
 import time
+import tempfile
 import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -80,11 +81,14 @@ def click_element(url, selector):
 
     try:
         options = Options()
-        # 可視モード（ヘッドレスにしない）
         options.add_argument(f"--user-agent={user_agent}")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
-        options.add_argument(f"--proxy-server={ip}")  # IPアドレス
+        options.add_argument(f"--proxy-server={ip}")
+
+        # 🔽 ユーザーデータディレクトリを一時フォルダに指定
+        user_data_dir = tempfile.mkdtemp()
+        options.add_argument(f"--user-data-dir={user_data_dir}")
 
         driver = webdriver.Chrome(options=options)
         driver.get(url)
