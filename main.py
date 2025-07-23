@@ -1,76 +1,109 @@
+import csv
 import time
+import schedule
 import pandas as pd
+from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
-import schedule
-import os
 
-def click_element(url, selector):
-    print(f"▶️ click_element実行: {url} / {selector}", flush=True)
+# ログファイルパス
+CLICK_LOG_PATH = 'click_log.csv'
+IP_LIST_PATH = 'ip_list.csv'
+
+# 使用済みIPのインデックスをファイルで管理
+def get_next_ip():
+    with open(IP_LIST_PATH, newline='', encoding='utf-8') as f:
+        reader = list(csv.DictReader(f))
+        ip_list = [row['ip'] for row in reader]
+
+    if not ip_list:
+        raise Exception("IPアドレスが見つかりません")
+
     try:
-        options = Options()
-        options.add_argument("--headless")
-        options.add_argument("--no-sandbox")
-        options.add_argument("--disable-dev-shm-usage")
+        with open('ip_index.txt', 'r') as f:
+            index = int(f.read().strip())
+    except FileNotFoundError:
+        index = 0
 
-        driver = webdriver.Chrome(options=options)
+    ip = ip_list[index]
+    index = (index + 1) % len(ip_list)
+
+    with open('ip_index.txt', 'w') as f:
+        f.write(str(index))
+
+    return ip
+
+def has_been_clicked(url):
+    try:
+        with open(CLICK_LOG_PATH, newline='', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if row['url'] == url:
+                    return True
+    except FileNotFoundError:
+        pass
+    return False
+
+def log_click(url, ip):
+    with open(CLICK_LOG_PATH, 'a', newline='', encoding='utf-8') as f:
+        writer = csv.writer(f)
+        writer.writerow([url, datetime.now().isoformat(), ip])
+
+def click_button(url, selector):
+    if has_been_clicked(url):
+        print(f"✅ 既にクリック済み：{url}")
+        return
+
+    ip = get_next_ip()
+    print(f"🌐 使用IP：{ip} → {url}")
+
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")
+    chrome_options.add_argument(f"--proxy-server={ip}")
+
+    driver = webdriver.Chrome(options=chrome_options)
+    try:
         driver.get(url)
-        time.sleep(3)
-
-        element = driver.find_element("css selector", selector)
-        element.click()
-        print("✅ クリック成功", flush=True)
-        driver.quit()
+        time.sleep(5)
+        button = driver.find_element("css selector", selector)
+        button.click()
+        print(f"✅ クリック成功：{url}")
+        log_click(url, ip)
     except Exception as e:
-        print(f"❌ クリック失敗: {e}", flush=True)
+        print(f"❌ エラー: {url} - {e}")
+    finally:
+        driver.quit()
 
 def schedule_tasks():
-    print("📋 タスクスケジュール設定開始", flush=True)
-    try:
-        # Render上でのファイルパス
-        csv_path = os.path.join(os.path.dirname(__file__), 'tasks.csv')
-        print(f"📄 CSVパス: {csv_path}", flush=True)
+    print("📋 タスク読み込み中...")
+    tasks = pd.read_csv('tasks.csv')
+    for _, row in tasks.iterrows():
+        url = row["url"]
+        selector = row["selector"]
+        interval = int(row["interval"])
+        unit = row["unit"]
 
-        df = pd.read_csv(csv_path)
-        print("✅ CSV読み込み成功", flush=True)
+        def job(u=url, s=selector):
+            click_button(u, s)
 
-        for index, row in df.iterrows():
-            try:
-                url = row["url"]
-                selector = row["selector"]
-                interval = int(row["interval"])
-                unit = row["unit"]
+        if unit == "時間":
+            schedule.every(interval).hours.do(job)
+        elif unit == "分":
+            schedule.every(interval).minutes.do(job)
+        elif unit == "日":
+            schedule.every(interval).days.do(job)
+        else:
+            print(f"⚠️ 無効な単位: {unit}")
 
-                print(f"📝 タスク{index + 1}: {url}, {selector}, {interval}, {unit}", flush=True)
-
-                # 最初に1回実行
-                click_element(url, selector)
-
-                # 定期スケジュール設定
-                if unit == "分":
-                    schedule.every(interval).minutes.do(click_element, url, selector)
-                elif unit == "時間":
-                    schedule.every(interval).hours.do(click_element, url, selector)
-                elif unit == "日":
-                    schedule.every(interval).days.do(click_element, url, selector)
-                else:
-                    print(f"⚠️ 未対応の単位: {unit}", flush=True)
-            except Exception as e:
-                print(f"❌ タスク設定失敗（{index + 1}行目）: {e}", flush=True)
-
-    except Exception as e:
-        print(f"❌ タスクスケジュール設定エラー: {e}", flush=True)
-        exit(1)
+        print(f"📅 スケジュール設定: {url} - {interval} {unit}おき")
 
 def run_scheduler():
-    print("⏱️ スケジューラー起動", flush=True)
+    schedule_tasks()
+    print("🚀 スケジューラー開始")
     while True:
         schedule.run_pending()
         time.sleep(1)
 
-# メイン処理
 if __name__ == "__main__":
-    print("🚀 main.py 起動", flush=True)
-    schedule_tasks()
-    print("📡 自動クリック開始！ Ctrl+C で終了します", flush=True)
+    print("📡 自動クリック開始！")
     run_scheduler()
