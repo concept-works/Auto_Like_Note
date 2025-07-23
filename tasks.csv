@@ -1,3 +1,3 @@
 ﻿url,selector,interval,unit
-https://note.com/can4u_jp/n/na957002be4e0,.o-noteLikeV3__iconButton,2,時間
-https://note.com/can4u_jp/n/nc939d8c0ae3b,.o-noteLikeV3__iconButton,1,時間
+https://note.com/can4u_jp/n/na957002be4e0,.o-noteLikeV3__iconContainerInner > .o-noteLikeV3__iconButton,2,時間
+https://note.com/can4u_jp/n/nc939d8c0ae3b,.o-noteLikeV3__iconContainerInner > .o-noteLikeV3__iconButton,1,時間
