@@ -1,98 +1,76 @@
-import csv
 import time
-import random
-import schedule
-from datetime import datetime
+import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-
-# 国内IPアドレスのサンプル（適宜追加可能）
-DOMESTIC_IP_LIST = [
-    "133.106.60.123", "103.5.140.1", "110.233.108.99",
-    "150.95.255.38", "202.238.152.1"
-]
-
-def get_random_headers():
-    print("📦 ヘッダーとUAをランダム生成中...")
-    browsers = ["Chrome", "Firefox", "Safari"]
-    os_choices = ["Windows", "macOS", "iOS", "Android"]
-    devices = ["PC", "スマートフォン"]
-
-    device = random.choice(devices)
-    os_type = random.choice(["Windows", "macOS"]) if device == "PC" else random.choice(["iOS", "Android"])
-    browser = random.choice(browsers)
-    user_agent = f"{browser} on {os_type}"
-
-    headers = {
-        "User-Agent": user_agent,
-        "X-Forwarded-For": random.choice(DOMESTIC_IP_LIST)
-    }
-
-    print(f"✅ 使用User-Agent: {headers['User-Agent']}")
-    print(f"✅ 使用IP (擬似): {headers['X-Forwarded-For']}")
-
-    return headers
+import schedule
+import os
 
 def click_element(url, selector):
-    print(f"🔗 {url} にアクセスして {selector} をクリックします")
-    headers = get_random_headers()
-
-    options = Options()
-    options.add_argument("--headless")
-    options.add_argument(f"user-agent={headers['User-Agent']}")
-    driver = webdriver.Chrome(options=options)
-
+    print(f"▶️ click_element実行: {url} / {selector}", flush=True)
     try:
+        options = Options()
+        options.add_argument("--headless")
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+
+        driver = webdriver.Chrome(options=options)
         driver.get(url)
-        time.sleep(5)  # 読み込み待ち
-        element = driver.find_element(By.CSS_SELECTOR, selector)
+        time.sleep(3)
+
+        element = driver.find_element("css selector", selector)
         element.click()
-        print("🖱️ クリック成功")
-    except Exception as e:
-        print(f"❌ クリック失敗: {e}")
-    finally:
+        print("✅ クリック成功", flush=True)
         driver.quit()
+    except Exception as e:
+        print(f"❌ クリック失敗: {e}", flush=True)
 
 def schedule_tasks():
-    print("📋 タスクCSVを読み込み中...")
+    print("📋 タスクスケジュール設定開始", flush=True)
     try:
-        with open("task.csv", newline="", encoding="utf-8") as csvfile:
-            reader = csv.DictReader(csvfile)
-            for row in reader:
-                print(f"📄 読み込み行: {row}")
+        # Render上でのファイルパス
+        csv_path = os.path.join(os.path.dirname(__file__), 'tasks.csv')
+        print(f"📄 CSVパス: {csv_path}", flush=True)
+
+        df = pd.read_csv(csv_path)
+        print("✅ CSV読み込み成功", flush=True)
+
+        for index, row in df.iterrows():
+            try:
                 url = row["url"]
                 selector = row["selector"]
                 interval = int(row["interval"])
                 unit = row["unit"]
 
-                def job(u=url, s=selector):
-                    print(f"⏰ {datetime.now()} - {u} 実行中")
-                    click_element(u, s)
+                print(f"📝 タスク{index + 1}: {url}, {selector}, {interval}, {unit}", flush=True)
 
-                jitter = random.randint(-10, 10)  # ゆらぎ（±10分）
-                interval_with_jitter = max(1, interval * 60 + jitter)
+                # 最初に1回実行
+                click_element(url, selector)
 
-                if unit == "時間":
-                    schedule.every(interval_with_jitter).minutes.do(job)
+                # 定期スケジュール設定
+                if unit == "分":
+                    schedule.every(interval).minutes.do(click_element, url, selector)
+                elif unit == "時間":
+                    schedule.every(interval).hours.do(click_element, url, selector)
                 elif unit == "日":
-                    schedule.every(interval_with_jitter * 60).minutes.do(job)
+                    schedule.every(interval).days.do(click_element, url, selector)
                 else:
-                    print(f"⚠️ 未知の単位: {unit}")
+                    print(f"⚠️ 未対応の単位: {unit}", flush=True)
+            except Exception as e:
+                print(f"❌ タスク設定失敗（{index + 1}行目）: {e}", flush=True)
 
-                print(f"✅ スケジュール設定済: {url} [{interval} {unit} + ゆらぎ {jitter}分]")
-
-                # 初回即時実行
-                job()
-
-    except FileNotFoundError:
-        print("❌ task.csv が見つかりません")
     except Exception as e:
-        print(f"❌ CSV読み込みエラー: {e}")
+        print(f"❌ タスクスケジュール設定エラー: {e}", flush=True)
+        exit(1)
 
-print("📡 自動クリック開始！ Ctrl+C で終了します")
-schedule_tasks()
+def run_scheduler():
+    print("⏱️ スケジューラー起動", flush=True)
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
 
-while True:
-    schedule.run_pending()
-    time.sleep(1)
+# メイン処理
+if __name__ == "__main__":
+    print("🚀 main.py 起動", flush=True)
+    schedule_tasks()
+    print("📡 自動クリック開始！ Ctrl+C で終了します", flush=True)
+    run_scheduler()
