@@ -49,15 +49,15 @@ def get_gsheet_client():
     return client
 
 # Google Sheetsにログを記録
-def log_click_to_sheet(url, ip="60.69.77.243"):
+def log_click_to_sheet(url, ip="60.69.77.243", user_agent="", referer=""):
     try:
         print("🔗 Google Sheets にログ記録中...", flush=True)
         client = get_gsheet_client()
         sheet = client.open("Auto_Like_Note").worksheet("log")
 
         now = datetime.now().isoformat()
-        sheet.append_row([url, now, ip])
-        print(f"📝 Sheets記録完了: {url}, {now}, {ip}", flush=True)
+        sheet.append_row([url, now, ip, user_agent, referer])
+        print(f"📝 Sheets記録完了: {url}, {now}, {ip}, {user_agent}, {referer}", flush=True)
 
     except Exception as e:
         print(f"⚠️ Sheetsログ保存エラー: {e}", flush=True)
@@ -66,16 +66,22 @@ def log_click_to_sheet(url, ip="60.69.77.243"):
 def click_element(url, selector):
     print(f"▶️ click_element実行: {url} / {selector}", flush=True)
     try:
-        ip = get_next_ip()
-        print(f"🌐 使用IP: {ip}", flush=True)
+        ip_address = get_next_ip()
+        user_agent, referer = generate_user_agent_and_referer()
+        print(f"🧭 使用UA: {user_agent}", flush=True)
+        print(f"🔁 リファラー: {referer}", flush=True)
 
         options = Options()
         options.add_argument("--headless")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
-        # 将来的にIPに合わせたプロキシ設定などを追加可能
+        options.add_argument(f"user-agent={user_agent}")
 
         driver = webdriver.Chrome(options=options)
+        driver.execute_cdp_cmd("Network.setExtraHTTPHeaders", {
+            "headers": {"Referer": referer}
+        })
+
         driver.get(url)
         time.sleep(3)
 
@@ -84,7 +90,7 @@ def click_element(url, selector):
         print("✅ クリック成功", flush=True)
         driver.quit()
 
-        log_click_to_sheet(url, ip)
+        log_click_to_sheet(url, ip=ip_address, user_agent=user_agent, referer=referer)
 
     except Exception as e:
         print(f"❌ クリック失敗: {e}", flush=True)
