@@ -1,68 +1,15 @@
 import time
-import tempfile
 import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 import schedule
 import os
-import random
 from datetime import datetime
 
-# --- IPアドレス取得 ---
-def get_next_ip(ip_file='ip_list.csv', index_file='ip_index.txt'):
-    ip_df = pd.read_csv(ip_file)
-    ip_list = ip_df['ip'].tolist()
-
-    if len(ip_list) < 1:
-        raise ValueError("IPリストが空です")
-
-    max_index = len(ip_list) - 1
-
-    if os.path.exists(index_file):
-        with open(index_file, 'r') as f:
-            index = int(f.read().strip())
-    else:
-        index = 0
-
-    selected_ip = ip_list[index]
-    new_index = index + 1 if index + 1 <= max_index else 0
-
-    with open(index_file, 'w') as f:
-        f.write(str(new_index))
-
-    return selected_ip
-
-# --- User-Agentのランダム生成 ---
-def get_random_user_agent():
-    devices = ["PC", "Smartphone"]
-    browsers = ["Chrome", "Firefox", "Safari"]
-    pc_os = ["Windows NT 10.0", "Macintosh; Intel Mac OS X 10_15_7"]
-    sp_os = ["iPhone; CPU iPhone OS 14_0 like Mac OS X", "Linux; Android 10"]
-
-    device = random.choice(devices)
-    browser = random.choice(browsers)
-
-    if device == "PC":
-        os_part = random.choice(pc_os)
-        ua_device = ""
-    else:
-        os_part = random.choice(sp_os)
-        ua_device = "Mobile "
-
-    if browser == "Chrome":
-        browser_part = "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-    elif browser == "Firefox":
-        browser_part = "Gecko/20100101 Firefox/89.0"
-    else:
-        browser_part = "Version/14.0 Mobile/15E148 Safari/604.1"
-
-    user_agent = f"Mozilla/5.0 ({os_part}) {ua_device}{browser_part}"
-    return user_agent
-
-# --- ログ記録 ---
-def log_click(url, ip):
+def log_click(url):
     log_path = os.path.join(os.path.dirname(__file__), 'click_log.csv')
     now = datetime.now().isoformat()
+    ip = "60.69.77.243"  # IPローテーションがまだないので仮
     try:
         if not os.path.exists(log_path):
             with open(log_path, 'w') as f:
@@ -73,23 +20,13 @@ def log_click(url, ip):
     except Exception as e:
         print(f"⚠️ クリックログ保存エラー: {e}", flush=True)
 
-# --- 実行処理 ---
 def click_element(url, selector):
-    ip = get_next_ip()
-    user_agent = get_random_user_agent()
-    print(f"▶️ click_element実行: {url} / {selector} / IP: {ip} / UA: {user_agent}", flush=True)
-
+    print(f"▶️ click_element実行: {url} / {selector}", flush=True)
     try:
         options = Options()
-        options.add_argument(f"--user-agent={user_agent}")
+        options.add_argument("--headless")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
-        options.add_argument(f"--proxy-server={ip}")
-
-        # 🔽 ユーザーデータディレクトリを一時フォルダに指定
-        user_data_dir = tempfile.mkdtemp()
-        options.add_argument(f"--user-data-dir={user_data_dir}")
-
         driver = webdriver.Chrome(options=options)
         driver.get(url)
         time.sleep(3)
@@ -99,12 +36,11 @@ def click_element(url, selector):
         print("✅ クリック成功", flush=True)
         driver.quit()
 
-        log_click(url, ip)
+        log_click(url)
 
     except Exception as e:
         print(f"❌ クリック失敗: {e}", flush=True)
 
-# --- スケジュール読み込み ---
 def schedule_tasks():
     print("📋 タスクスケジュール設定開始", flush=True)
     try:
@@ -139,14 +75,12 @@ def schedule_tasks():
         print(f"❌ タスクスケジュール設定エラー: {e}", flush=True)
         exit(1)
 
-# --- スケジューラー実行 ---
 def run_scheduler():
     print("⏱️ スケジューラー起動", flush=True)
     while True:
         schedule.run_pending()
         time.sleep(1)
 
-# --- 実行エントリーポイント ---
 if __name__ == "__main__":
     print("🚀 main.py 起動", flush=True)
     schedule_tasks()
