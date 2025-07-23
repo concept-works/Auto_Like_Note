@@ -62,7 +62,7 @@ def click_element(url, selector, ip, log_file):
 def schedule_tasks():
     print("📋 タスクスケジュール設定開始", flush=True)
 
-    task_file = os.path.join(os.path.dirname(__file__), 'task.csv')
+    task_file = os.path.join(os.path.dirname(__file__), 'tasks.csv')
     ip_file = os.path.join(os.path.dirname(__file__), 'ip_list.csv')
     index_file = os.path.join(os.path.dirname(__file__), 'ip_index.txt')
     log_file = os.path.join(os.path.dirname(__file__), 'click_log.csv')
