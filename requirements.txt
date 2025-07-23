@@ -1,3 +1,5 @@
 selenium
 pandas
 schedule
+gspread
+oauth2client
