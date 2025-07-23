@@ -6,7 +6,43 @@ import schedule
 import os
 from datetime import datetime
 import gspread
+import random
 from google.oauth2.service_account import Credentials
+
+# ユーザーエージェント管理
+def generate_user_agent_and_referer():
+    devices = ["SP", "PC"]
+    sp_oses = ["Android", "iOS"]
+    pc_oses = ["Windows", "macOS"]
+    referers = [
+        "https://twitter.com/",
+        "https://www.google.com/",
+        "https://www.bing.com/",
+        "https://note.com/",
+        "https://www.instagram.com/",
+        "https://www.facebook.com/",
+        "https://jp.pinterest.com/",
+        "https://www.tiktok.com/",
+        "https://yahoo.co.jp/"
+    ]
+
+    device = random.choice(devices)
+
+    if device == "SP":
+        os_choice = random.choice(sp_oses)
+        if os_choice == "Android":
+            ua = "Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Mobile Safari/537.36"
+        else:
+            ua = "Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15A372 Safari/604.1"
+    else:
+        os_choice = random.choice(pc_oses)
+        if os_choice == "Windows":
+            ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36"
+        else:
+            ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0.3 Safari/605.1.15"
+
+    referer = random.choice(referers)
+    return ua, referer
 
 # IPアドレス管理
 def get_next_ip():
@@ -35,7 +71,7 @@ def get_next_ip():
     with open(index_path, 'w') as f:
         f.write(str(next_index))
 
-    return df.iloc[current_index][0]
+    return df.iloc[current_index, 0]
 
 # Google Sheets API認証
 def get_gsheet_client():
