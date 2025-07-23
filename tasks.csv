@@ -1,3 +1,5 @@
 ﻿url,selector,interval,unit
-https://note.com/can4u_jp/n/na957002be4e0,.o-noteLikeV3__iconContainerInner > .o-noteLikeV3__iconButton,2,時間
-https://note.com/can4u_jp/n/nc939d8c0ae3b,.o-noteLikeV3__iconContainerInner > .o-noteLikeV3__iconButton,1,時間
+https://note.com/can4u_jp/n/na957002be4e0,.p-article__action .o-noteLikeV3__iconContainerInner > .o-noteLikeV3__iconButton,2,時間
+https://note.com/can4u_jp/n/nc939d8c0ae3b,.p-article__action .o-noteLikeV3__iconContainerInner > .o-noteLikeV3__iconButton,1,時間
+https://note.com/can4u_jp/n/n654c7df80707,.p-article__action .o-noteLikeV3__iconContainerInner > .o-noteLikeV3__iconButton,4,時間
+https://note.com/can4u_jp/n/n3fac81ddaffe,.p-article__action .o-noteLikeV3__iconContainerInner > .o-noteLikeV3__iconButton,2,時間
