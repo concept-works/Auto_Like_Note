@@ -1,0 +1,6 @@
+services:
+  - type: worker
+    name: Auto_Like_Note
+    env: python
+    buildCommand: "./start.sh"
+    startCommand: "python main.py"

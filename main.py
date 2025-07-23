@@ -1,83 +1,96 @@
-import pandas as pd
+import csv
 import random
 import time
+from datetime import datetime, timedelta
 import schedule
-import threading
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
-import os
+from selenium.webdriver.common.by import By
 
-csv_file = "tasks.csv"
-if not os.path.exists(csv_file):
-    print("❌ tasks.csv が見つかりません。")
-    exit()
-
-df = pd.read_csv(csv_file)
-
-user_agents = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/115.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/15.1 Safari/605.1.15",
-    "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148",
-    "Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 Chrome/112.0.0.0 Mobile Safari/537.36"
+# === 国内IPアドレスのサンプル ===
+DOMESTIC_IPS = [
+    "133.106.32.1", "123.45.67.89", "202.32.14.10", "219.99.5.11", "106.73.12.8"
 ]
 
-domestic_ips = [
-    "133.242.100.100", "157.112.145.1", "150.95.55.10", "153.127.202.50"
+# === ユーザーエージェントの候補 ===
+USER_AGENTS = [
+    # PC系
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.4 Safari/605.1.15",
+    # スマホ系
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1",
+    "Mozilla/5.0 (Linux; Android 13; Pixel 6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Mobile Safari/537.36"
 ]
 
-def perform_action(url, selector):
-    ua = random.choice(user_agents)
-    ip = random.choice(domestic_ips)
-
+# === ヘッドレスChromeのドライバ生成 ===
+def get_driver():
     options = Options()
     options.add_argument("--headless")
+    options.add_argument("--disable-gpu")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
-    options.add_argument(f"user-agent={ua}")
+    options.add_argument("--window-size=1920x1080")
+    options.binary_location = "/usr/bin/google-chrome"
+    user_agent = random.choice(USER_AGENTS)
+    options.add_argument(f"user-agent={user_agent}")
+    return webdriver.Chrome(options=options)
 
-    driver = webdriver.Chrome(options=options)
-
-    try:
-        driver.execute_cdp_cmd("Network.enable", {})
-        driver.execute_cdp_cmd("Network.setExtraHTTPHeaders", {
-            "headers": {"X-Forwarded-For": ip}
-        })
-    except Exception as e:
-        print(f"⚠ ヘッダ設定エラー: {e}")
-
+# === タスクの実行処理 ===
+def execute_task(url, selector):
+    print(f"[{datetime.now()}] アクセス開始: {url}")
+    driver = get_driver()
     try:
         driver.get(url)
-        time.sleep(2)
-        driver.find_element("css selector", selector).click()
-        print(f"✅ クリック成功: {url} の {selector}")
+
+        # 国内IPをX-Forwarded-Forに設定（擬似）
+        ip = random.choice(DOMESTIC_IPS)
+        driver.execute_cdp_cmd(
+            'Network.setExtraHTTPHeaders',
+            {"headers": {"X-Forwarded-For": ip}}
+        )
+
+        time.sleep(5)  # ページ読み込み待機
+        element = driver.find_element(By.CSS_SELECTOR, selector)
+        element.click()
+        print(f"[{datetime.now()}] クリック成功: {selector}")
+
     except Exception as e:
-        print(f"❌ エラー: {e}")
+        print(f"[{datetime.now()}] エラー発生: {e}")
     finally:
         driver.quit()
 
-def schedule_task(row):
-    url = row['access_url']
-    selector = row['click_selector']
-    interval = int(row['interval'])
-    unit = row['unit'].strip()
+# === CSVの読み取りとスケジュール設定 ===
+def schedule_tasks():
+    with open("tasks.csv", newline="", encoding="utf-8") as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            url = row["url"]
+            selector = row["selector"]
+            interval = int(row["interval"])
+            unit = row["unit"]
 
-    base_minutes = interval * 60 if unit == "時間" else interval * 1440
-    jitter = random.randint(-10, 10)
-    total_minutes = max(1, base_minutes + jitter)
+            def make_job(url=url, selector=selector):
+                def job():
+                    # ゆらぎ －10〜＋10分
+                    jitter = random.randint(-10, 10) * 60
+                    print(f"[{datetime.now()}] タスク予定: {url} | ゆらぎ: {jitter//60:+}分")
+                    time.sleep(abs(jitter))  # ゆらぎ分待機
+                    execute_task(url, selector)
+                return job
 
-    def task():
-        perform_action(url, selector)
+            job = make_job()
 
-    schedule.every(total_minutes).minutes.do(task)
-    print(f"🔁 {total_minutes}分ごとに {url} をクリック")
+            if unit == "時間":
+                schedule.every(interval).hours.do(job)
+            elif unit == "日":
+                schedule.every(interval).days.do(job)
+            else:
+                print(f"不明な単位: {unit}")
 
-for _, row in df.iterrows():
-    schedule_task(row)
-
-def run_scheduler():
+# === メイン ===
+if __name__ == "__main__":
+    print("📡 自動クリック開始！ Ctrl+C で終了します")
+    schedule_tasks()
     while True:
         schedule.run_pending()
         time.sleep(10)
-
-print("📡 自動クリック開始！ Ctrl+C で終了します")
-run_scheduler()
