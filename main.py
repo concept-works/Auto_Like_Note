@@ -8,6 +8,35 @@ from datetime import datetime
 import gspread
 from google.oauth2.service_account import Credentials
 
+# IPアドレス管理
+def get_next_ip():
+    ip_path = os.path.join(os.path.dirname(__file__), 'ip_list.csv')
+    index_path = os.path.join(os.path.dirname(__file__), 'ip_index.txt')
+
+    df = pd.read_csv(ip_path)
+    if df.empty or len(df) < 2:
+        raise Exception("⚠️ IPリストに十分なデータがありません（最低2行必要）")
+
+    total = len(df)
+    current_index = 1  # 初期値（2行目 = index 1）
+
+    # インデックスファイルの読み込み
+    if os.path.exists(index_path):
+        with open(index_path, 'r') as f:
+            try:
+                current_index = int(f.read().strip())
+            except:
+                current_index = 1
+
+    # インデックスを次に進める（最後まで行ったら2行目に戻す）
+    next_index = current_index + 1 if current_index + 1 < total else 1
+
+    # 書き戻す
+    with open(index_path, 'w') as f:
+        f.write(str(next_index))
+
+    return df.iloc[current_index][0]
+
 # Google Sheets API認証
 def get_gsheet_client():
     json_path = "/etc/secrets/credentials.json"
@@ -33,13 +62,18 @@ def log_click_to_sheet(url, ip="60.69.77.243"):
     except Exception as e:
         print(f"⚠️ Sheetsログ保存エラー: {e}", flush=True)
 
+# クリック処理
 def click_element(url, selector):
     print(f"▶️ click_element実行: {url} / {selector}", flush=True)
     try:
+        ip = get_next_ip()
+        print(f"🌐 使用IP: {ip}", flush=True)
+
         options = Options()
         options.add_argument("--headless")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
+        # 将来的にIPに合わせたプロキシ設定などを追加可能
 
         driver = webdriver.Chrome(options=options)
         driver.get(url)
@@ -50,11 +84,12 @@ def click_element(url, selector):
         print("✅ クリック成功", flush=True)
         driver.quit()
 
-        log_click_to_sheet(url)
+        log_click_to_sheet(url, ip)
 
     except Exception as e:
         print(f"❌ クリック失敗: {e}", flush=True)
 
+# スケジューリング処理
 def schedule_tasks():
     print("📋 タスクスケジュール設定開始", flush=True)
     try:
@@ -73,10 +108,8 @@ def schedule_tasks():
 
                 print(f"📝 タスク{index + 1}: {url}, {selector}, {interval}, {unit}", flush=True)
 
-                # 初回即時クリック
                 click_element(url, selector)
 
-                # スケジューリング
                 if unit == "分":
                     schedule.every(interval).minutes.do(click_element, url, selector)
                 elif unit == "時間":
@@ -99,6 +132,7 @@ def run_scheduler():
         schedule.run_pending()
         time.sleep(1)
 
+# メイン処理
 if __name__ == "__main__":
     print("🚀 main.py 起動", flush=True)
     schedule_tasks()
