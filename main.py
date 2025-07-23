@@ -11,7 +11,10 @@ from google.oauth2.service_account import Credentials
 # Google Sheets API認証
 def get_gsheet_client():
     json_path = "/etc/secrets/credentials.json"
-    scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive"
+    ]
     creds = Credentials.from_service_account_file(json_path, scopes=scopes)
     client = gspread.authorize(creds)
     return client
