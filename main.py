@@ -2,14 +2,13 @@ import time
 import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 import schedule
 import os
+import random
 from datetime import datetime
 
-def get_next_ip(ip_file, index_file):
+# --- IPアドレス取得 ---
+def get_next_ip(ip_file='ip_list.csv', index_file='ip_index.txt'):
     ip_df = pd.read_csv(ip_file)
     ip_list = ip_df['ip'].tolist()
 
@@ -32,77 +31,118 @@ def get_next_ip(ip_file, index_file):
 
     return selected_ip
 
-def log_click(url, ip, log_file):
-    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    with open(log_file, 'a', encoding='utf-8') as f:
-        f.write(f"{url},{now},{ip}\n")
+# --- User-Agentのランダム生成 ---
+def get_random_user_agent():
+    devices = ["PC", "Smartphone"]
+    browsers = ["Chrome", "Firefox", "Safari"]
+    pc_os = ["Windows NT 10.0", "Macintosh; Intel Mac OS X 10_15_7"]
+    sp_os = ["iPhone; CPU iPhone OS 14_0 like Mac OS X", "Linux; Android 10"]
 
-def click_element(url, selector, ip, log_file):
-    print(f"▶️ click_element実行: {url} / {selector} / IP: {ip}", flush=True)
+    device = random.choice(devices)
+    browser = random.choice(browsers)
+
+    if device == "PC":
+        os_part = random.choice(pc_os)
+        ua_device = ""
+    else:
+        os_part = random.choice(sp_os)
+        ua_device = "Mobile "
+
+    if browser == "Chrome":
+        browser_part = "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    elif browser == "Firefox":
+        browser_part = "Gecko/20100101 Firefox/89.0"
+    else:
+        browser_part = "Version/14.0 Mobile/15E148 Safari/604.1"
+
+    user_agent = f"Mozilla/5.0 ({os_part}) {ua_device}{browser_part}"
+    return user_agent
+
+# --- ログ記録 ---
+def log_click(url, ip):
+    log_path = os.path.join(os.path.dirname(__file__), 'click_log.csv')
+    now = datetime.now().isoformat()
+    try:
+        if not os.path.exists(log_path):
+            with open(log_path, 'w') as f:
+                f.write("url,click,ip\n")
+        with open(log_path, 'a') as f:
+            f.write(f"{url},{now},{ip}\n")
+        print(f"📝 クリックログ記録: {url}, {now}, {ip}", flush=True)
+    except Exception as e:
+        print(f"⚠️ クリックログ保存エラー: {e}", flush=True)
+
+# --- 実行処理 ---
+def click_element(url, selector):
+    ip = get_next_ip()
+    user_agent = get_random_user_agent()
+    print(f"▶️ click_element実行: {url} / {selector} / IP: {ip} / UA: {user_agent}", flush=True)
+
     try:
         options = Options()
-        options.add_argument("--headless")
+        # 可視モード（ヘッドレスにしない）
+        options.add_argument(f"--user-agent={user_agent}")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
-        options.add_argument(f"--proxy-server={ip}")
+        options.add_argument(f"--proxy-server={ip}")  # IPアドレス
 
         driver = webdriver.Chrome(options=options)
-        driver.set_window_size(1280, 800)  # PCビュー想定
-
         driver.get(url)
+        time.sleep(3)
 
-        # 明示的に要素が出現するのを最大10秒待つ
-        wait = WebDriverWait(driver, 10)
-        element = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, selector)))
-
+        element = driver.find_element("css selector", selector)
         element.click()
         print("✅ クリック成功", flush=True)
-        log_click(url, ip, log_file)
+        driver.quit()
+
+        log_click(url, ip)
 
     except Exception as e:
         print(f"❌ クリック失敗: {e}", flush=True)
-    finally:
-        driver.quit()
 
+# --- スケジュール読み込み ---
 def schedule_tasks():
     print("📋 タスクスケジュール設定開始", flush=True)
+    try:
+        csv_path = os.path.join(os.path.dirname(__file__), 'tasks.csv')
+        print(f"📄 CSVパス: {csv_path}", flush=True)
+        df = pd.read_csv(csv_path)
+        print("✅ CSV読み込み成功", flush=True)
 
-    task_file = os.path.join(os.path.dirname(__file__), 'tasks.csv')
-    ip_file = os.path.join(os.path.dirname(__file__), 'ip_list.csv')
-    index_file = os.path.join(os.path.dirname(__file__), 'ip_index.txt')
-    log_file = os.path.join(os.path.dirname(__file__), 'click_log.csv')
+        for index, row in df.iterrows():
+            try:
+                url = row["url"]
+                selector = row["selector"]
+                interval = int(row["interval"])
+                unit = row["unit"]
 
-    df = pd.read_csv(task_file)
+                print(f"📝 タスク{index + 1}: {url}, {selector}, {interval}, {unit}", flush=True)
 
-    for index, row in df.iterrows():
-        url = row["url"]
-        selector = row["selector"]
-        interval = int(row["interval"])
-        unit = row["unit"]
+                click_element(url, selector)
 
-        print(f"📝 タスク{index + 1}: {url}, {selector}, {interval}, {unit}", flush=True)
+                if unit == "分":
+                    schedule.every(interval).minutes.do(click_element, url, selector)
+                elif unit == "時間":
+                    schedule.every(interval).hours.do(click_element, url, selector)
+                elif unit == "日":
+                    schedule.every(interval).days.do(click_element, url, selector)
+                else:
+                    print(f"⚠️ 未対応の単位: {unit}", flush=True)
+            except Exception as e:
+                print(f"❌ タスク設定失敗（{index + 1}行目）: {e}", flush=True)
 
-        ip = get_next_ip(ip_file, index_file)
-        click_element(url, selector, ip, log_file)
+    except Exception as e:
+        print(f"❌ タスクスケジュール設定エラー: {e}", flush=True)
+        exit(1)
 
-        def make_job(u=url, s=selector):
-            return lambda: click_element(u, s, get_next_ip(ip_file, index_file), log_file)
-
-        if unit == "分":
-            schedule.every(interval).minutes.do(make_job())
-        elif unit == "時間":
-            schedule.every(interval).hours.do(make_job())
-        elif unit == "日":
-            schedule.every(interval).days.do(make_job())
-        else:
-            print(f"⚠️ 未対応の単位: {unit}", flush=True)
-
+# --- スケジューラー実行 ---
 def run_scheduler():
     print("⏱️ スケジューラー起動", flush=True)
     while True:
         schedule.run_pending()
         time.sleep(1)
 
+# --- 実行エントリーポイント ---
 if __name__ == "__main__":
     print("🚀 main.py 起動", flush=True)
     schedule_tasks()
