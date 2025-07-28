@@ -3,3 +3,4 @@ pandas
 schedule
 gspread
 oauth2client
+chromedriver-autoinstaller
