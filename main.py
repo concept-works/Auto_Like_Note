@@ -2,7 +2,6 @@ import time
 import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
-import chromedriver_autoinstaller
 import schedule
 import os
 from datetime import datetime
@@ -10,10 +9,7 @@ import gspread
 import random
 from google.oauth2.service_account import Credentials
 
-# ✅ ChromeDriverを自動インストール・対応バージョン確認
-chromedriver_autoinstaller.install()
-
-# ユーザーエージェントとリファラー生成
+# ユーザーエージェント管理
 def generate_user_agent_and_referer():
     devices = ["SP", "PC"]
     sp_oses = ["Android", "iOS"]
@@ -58,8 +54,9 @@ def get_next_ip():
         raise Exception("⚠️ IPリストに十分なデータがありません（最低2行必要）")
 
     total = len(df)
-    current_index = 1
+    current_index = 1  # 初期値（2行目 = index 1）
 
+    # インデックスファイルの読み込み
     if os.path.exists(index_path):
         with open(index_path, 'r') as f:
             try:
@@ -67,8 +64,10 @@ def get_next_ip():
             except:
                 current_index = 1
 
+    # インデックスを次に進める（最後まで行ったら2行目に戻す）
     next_index = current_index + 1 if current_index + 1 < total else 1
 
+    # 書き戻す
     with open(index_path, 'w') as f:
         f.write(str(next_index))
 
@@ -169,7 +168,6 @@ def schedule_tasks():
         print(f"❌ タスクスケジュール設定エラー: {e}", flush=True)
         exit(1)
 
-# スケジューラー起動
 def run_scheduler():
     print("⏱️ スケジューラー起動", flush=True)
     while True:
